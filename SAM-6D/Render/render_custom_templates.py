@@ -13,7 +13,8 @@ parser.add_argument('--normalize', default=True, help="Whether to normalize CAD 
 parser.add_argument('--colorize', default=False, help="Whether to colorize CAD model or not")
 parser.add_argument('--base_color', default=0.05, help="The base color used in CAD model")
 args = parser.parse_args()
-
+args.cad_path = '/media/gouda/3C448DDD448D99F2/segmentation/SAM-6D/SAM-6D/Data/Example/big_robots_6d/models/obj_000002.ply'
+args.output_dir = '/media/gouda/3C448DDD448D99F2/segmentation/SAM-6D/SAM-6D/Data/Example/big_robots_6d/outputs'
 # set the cnos camera path
 render_dir = os.path.dirname(os.path.abspath(__file__))
 cnos_cam_fpath = os.path.join(render_dir, '../Instance_Segmentation_Model/utils/poses/predefined_poses/cam_poses_level0.npy')
@@ -51,7 +52,6 @@ for idx, cam_pose in enumerate(cam_poses):
     obj = bproc.loader.load_obj(args.cad_path)[0]
     obj.set_scale([scale, scale, scale])
     obj.set_cp("category_id", 1)
-
     # assigning material colors to untextured objects
     if args.colorize:
         color = [args.base_color, args.base_color, args.base_color, 0.]

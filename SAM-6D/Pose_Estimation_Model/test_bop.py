@@ -27,7 +27,9 @@ detetion_paths = {
     'lmo': '../Instance_Segmentation_Model/log/sam/result_lmo.json',
     'itodd': '../Instance_Segmentation_Model/log/sam/result_itodd.json',
     'icbin': '../Instance_Segmentation_Model/log/sam/result_icbin.json',
-    'hb': '../Instance_Segmentation_Model/log/sam/result_hb.json'
+    'hb': '../Instance_Segmentation_Model/log/sam/result_hb.json',
+    'big_robots_6d': '/media/gouda/3C448DDD448D99F2/segmentation/SAM-6D/SAM-6D/Instance_Segmentation_Model/log/sam/result_big_robots_6d.json'
+    
 }
 
 
@@ -68,6 +70,10 @@ def get_parser():
                         default=0,
                         help="experiment id")
     args_cfg = parser.parse_args()
+    args_cfg.checkpoint_path = '/media/gouda/3C448DDD448D99F2/segmentation/SAM-6D/SAM-6D/Pose_Estimation_Model/checkpoints/sam-6d-pem-base.pth'
+    args_cfg.dataset = 'big_robots_6d'
+    args_cfg.gpus = '0'
+    args_cfg.model = 'pose_estimation_model'
 
     return args_cfg
 
@@ -213,7 +219,7 @@ if __name__ == "__main__":
 
 
     if cfg.dataset == 'all':
-        datasets = ['ycbv', 'tudl',  'lmo', 'icbin', 'tless', 'itodd' , 'hb']
+        datasets = ['ycbv', 'tudl',  'lmo', 'icbin', 'tless', 'itodd' , 'hb', 'big_robots_6d']
         for dataset_name in datasets:
             print('begining evaluation on {} ...'.format(dataset_name))
 

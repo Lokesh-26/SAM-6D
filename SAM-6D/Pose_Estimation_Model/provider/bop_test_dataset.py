@@ -96,9 +96,12 @@ class BOPTestset():
         obj_id = data['category_id'] # data type: int
         bbox = data['bbox'] # list, len:4
         seg = data['segmentation'] # keys: counts, size
+        if len(seg['size']) == 3:
+            seg['size'] = seg['size'][1:]
         score = data['score']
 
         scene_folder = os.path.join(self.data_folder, f'{scene_id:06d}')
+        print(scene_folder)
         scene_camera = json.load(open(os.path.join(scene_folder, 'scene_camera.json')))
         K = np.array(scene_camera[str(img_id)]['cam_K']).reshape((3, 3)).copy()
         depth_scale = scene_camera[str(img_id)]['depth_scale']

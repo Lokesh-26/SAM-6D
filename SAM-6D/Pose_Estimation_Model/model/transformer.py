@@ -273,13 +273,17 @@ class SinusoidalPositionalEmbedding(nn.Module):
         Returns:
             embeddings: torch.Tensor (*, D)
         """
+        # convert dtype to float16 to avoid overflow
+        # emb_indices = emb_indices.half()
         input_shape = emb_indices.shape
         omegas = emb_indices.view(-1, 1, 1) * self.div_term.view(1, -1, 1)  # (-1, d_model/2, 1)
+        # omegas = omegas.half()
         sin_embeddings = torch.sin(omegas)
         cos_embeddings = torch.cos(omegas)
         embeddings = torch.cat([sin_embeddings, cos_embeddings], dim=2)  # (-1, d_model/2, 2)
         embeddings = embeddings.view(*input_shape, self.d_model)  # (*, d_model)
         embeddings = embeddings.detach()
+        # embeddings = embeddings.type(torch.float32)
         return embeddings
 
 
@@ -311,7 +315,8 @@ class GeometricStructureEmbedding(nn.Module):
             a_indices: torch.FloatTensor (B, N, N, k), angular embedding indices
         """
         batch_size, num_point, _ = points.shape
-
+        #batch_size = 1
+        #points = points[:batch_size]
         dist_map = torch.sqrt(pairwise_distance(points, points))  # (B, N, N)
         d_indices = dist_map / self.sigma_d
 

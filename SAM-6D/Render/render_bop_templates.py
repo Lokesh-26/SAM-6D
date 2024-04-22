@@ -9,7 +9,7 @@ import numpy as np
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset_name', help="The name of bop datasets")
 args = parser.parse_args()
-
+args.dataset_name = 'big_robots_6d'
 # set relative path of Data folder
 render_dir = os.path.dirname(os.path.abspath(__file__))
 bop_path = os.path.join(render_dir, '../Data/BOP')
@@ -45,7 +45,6 @@ for obj_id in models_info.keys():
             material = bproc.material.create('obj')
             material.set_principled_shader_value('Base Color', color)
             obj.set_material(0, material)
-        
         # convert cnos camera poses to blender camera poses
         cam_pose[:3, 1:3] = -cam_pose[:3, 1:3]
         cam_pose[:3, -1] = cam_pose[:3, -1] * 0.001 * 2
