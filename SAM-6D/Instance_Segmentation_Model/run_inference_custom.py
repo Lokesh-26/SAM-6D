@@ -43,43 +43,44 @@ inv_rgb_transform = T.Compose(
     )
 
 def visualize(rgb, detections, save_path="tmp.png"):
-    img = rgb.copy()
-    gray = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2GRAY)
+    img = np.array(rgb)
+    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
     img = cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB)
     colors = distinctipy.get_colors(len(detections))
     alpha = 0.33
 
-    best_score = 0.
-    for mask_idx, det in enumerate(detections):
-        if best_score < det['score']:
+    best_det = None
+    best_score = -1
+    for det in detections:
+        if det['score'] > best_score:
+            best_det = det
             best_score = det['score']
-            best_det = detections[mask_idx]
-
+            if best_det is None:
+                continue
     mask = rle_to_mask(best_det["segmentation"])
     edge = canny(mask)
     edge = binary_dilation(edge, np.ones((2, 2)))
     obj_id = best_det["category_id"]
-    temp_id = obj_id - 1
+    temp_id = max(0, obj_id - 1)
 
-    r = int(255*colors[temp_id][0])
-    g = int(255*colors[temp_id][1])
-    b = int(255*colors[temp_id][2])
-    img[mask, 0] = alpha*r + (1 - alpha)*img[mask, 0]
-    img[mask, 1] = alpha*g + (1 - alpha)*img[mask, 1]
-    img[mask, 2] = alpha*b + (1 - alpha)*img[mask, 2]   
+    r = int(255 * colors[temp_id][0])
+    g = int(255 * colors[temp_id][1])
+    b = int(255 * colors[temp_id][2])
+    img[mask, 0] = alpha * r + (1 - alpha) * img[mask, 0]
+    img[mask, 1] = alpha * g + (1 - alpha) * img[mask, 1]
+    img[mask, 2] = alpha * b + (1 - alpha) * img[mask, 2]
     img[edge, :] = 255
-    
+
     img = Image.fromarray(np.uint8(img))
     img.save(save_path)
     prediction = Image.open(save_path)
-    
-    # concat side by side in PIL
-    img = np.array(img)
-    concat = Image.new('RGB', (img.shape[1] + prediction.size[0], img.shape[0]))
-    concat.paste(rgb, (0, 0))
-    concat.paste(prediction, (img.shape[1], 0))
-    return concat
 
+    # Concatenate side by side
+    concat = Image.new('RGB', (img.size[0] + prediction.size[0], max(img.size[1], prediction.size[1])))
+    concat.paste(img, (0, 0))
+    concat.paste(prediction, (img.size[0], 0))
+
+    return concat
 def batch_input_data(depth_path, cam_path, device):
     batch = {}
     cam_info = load_json(cam_path)
@@ -92,10 +93,20 @@ def batch_input_data(depth_path, cam_path, device):
     batch['depth_scale'] = torch.from_numpy(depth_scale).unsqueeze(0).to(device)
     return batch
 
+def process_scene(rgb_paths, depth_paths, output_dir, segmentor_model='sam', cad_path=None, cam_path=None, stability_score_thresh=0.97):
+    os.makedirs(os.path.join(output_dir, 'sam6d_results'), exist_ok=True)
+    for rgb_path, depth_path in zip(rgb_paths, depth_paths):
+        filename = os.path.splitext(os.path.basename(rgb_path))[0]
+        output_subdir = os.path.join(output_dir, 'sam6d_results', filename)
+        os.makedirs(output_subdir, exist_ok=True)
+
+        run_inference(
+            segmentor_model, output_subdir, cad_path, rgb_path, depth_path, cam_path, stability_score_thresh
+        )
+
 def run_inference(segmentor_model, output_dir, cad_path, rgb_path, depth_path, cam_path, stability_score_thresh):
     with initialize(version_base=None, config_path="configs"):
         cfg = compose(config_name='run_inference.yaml')
-
     if segmentor_model == "sam":
         with initialize(version_base=None, config_path="configs/model"):
             cfg.model = compose(config_name='ISM_sam.yaml')
@@ -108,7 +119,7 @@ def run_inference(segmentor_model, output_dir, cad_path, rgb_path, depth_path, c
 
     logging.info("Initializing model")
     model = instantiate(cfg.model)
-    
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.descriptor_model.model = model.descriptor_model.model.to(device)
     model.descriptor_model.model.device = device
@@ -120,10 +131,11 @@ def run_inference(segmentor_model, output_dir, cad_path, rgb_path, depth_path, c
     else:
         model.segmentor_model.model.setup_model(device=device, verbose=True)
     logging.info(f"Moving models to {device} done!")
-        
-    
+
+
     logging.info("Initializing template")
     template_dir = os.path.join(output_dir, 'templates')
+    # template_dir = '/media/gouda/3C448DDD448D99F2/segmentation/SAM-6D/SAM-6D/Data/BOP-Templates/big_robots_6d/obj_000002'
     num_templates = len(glob.glob(f"{template_dir}/*.npy"))
     boxes, masks, templates = [], [], []
     for idx in range(num_templates):
@@ -136,11 +148,11 @@ def run_inference(segmentor_model, output_dir, cad_path, rgb_path, depth_path, c
         image = image * mask[:, :, None]
         templates.append(image)
         masks.append(mask.unsqueeze(-1))
-        
+
     templates = torch.stack(templates).permute(0, 3, 1, 2)
     masks = torch.stack(masks).permute(0, 3, 1, 2)
     boxes = torch.tensor(np.array(boxes))
-    
+
     processing_config = OmegaConf.create(
         {
             "image_size": 224,
@@ -152,12 +164,12 @@ def run_inference(segmentor_model, output_dir, cad_path, rgb_path, depth_path, c
 
     model.ref_data = {}
     model.ref_data["descriptors"] = model.descriptor_model.compute_features(
-                    templates, token_name="x_norm_clstoken"
-                ).unsqueeze(0).data
+        templates, token_name="x_norm_clstoken"
+    ).unsqueeze(0).data
     model.ref_data["appe_descriptors"] = model.descriptor_model.compute_masked_patch_feature(
-                    templates, masks_cropped[:, 0, :, :]
-                ).unsqueeze(0).data
-    
+        templates, masks_cropped[:, 0, :, :]
+    ).unsqueeze(0).data
+
     # run inference
     rgb = Image.open(rgb_path).convert("RGB")
     detections = model.segmentor_model.generate_masks(np.array(rgb))
@@ -189,12 +201,12 @@ def run_inference(segmentor_model, output_dir, cad_path, rgb_path, depth_path, c
     mesh = trimesh.load_mesh(cad_path)
     model_points = mesh.sample(2048).astype(np.float32) / 1000.0
     model.ref_data["pointcloud"] = torch.tensor(model_points).unsqueeze(0).data.to(device)
-    
+
     image_uv = model.project_template_to_image(best_template, pred_idx_objects, batch, detections.masks)
 
     geometric_score, visible_ratio = model.compute_geometric_score(
         image_uv, detections, query_appe_descriptors, ref_aux_descriptor, visible_thred=model.visible_thred
-        )
+    )
 
     # final score
     final_score = (semantic_score + appe_scores + geometric_score*visible_ratio) / (1 + 1 + visible_ratio)
@@ -204,6 +216,7 @@ def run_inference(segmentor_model, output_dir, cad_path, rgb_path, depth_path, c
          
     detections.to_numpy()
     save_path = f"{output_dir}/sam6d_results/detection_ism"
+    # save_path = f"{output_dir}/detection_ism"
     detections.save_to_file(0, 0, 0, save_path, "Custom", return_results=False)
     detections = convert_npz_to_json(idx=0, list_npz_paths=[save_path+".npz"])
     save_json_bop23(save_path+".json", detections)
@@ -220,6 +233,11 @@ if __name__ == "__main__":
     parser.add_argument("--cam_path", nargs="?", help="Path to camera information")
     parser.add_argument("--stability_score_thresh", default=0.97, type=float, help="stability_score_thresh of SAM")
     args = parser.parse_args()
+    args.output_dir = "/media/gouda/3C448DDD448D99F2/segmentation/SAM-6D/SAM-6D/Data/Example/big_robots_6d/outputs"
+    args.rgb_path = "/media/gouda/3C448DDD448D99F2/segmentation/SAM-6D/SAM-6D/Data/Example/big_robots_6d/rgb/palet.png"
+    args.depth_path = "/media/gouda/3C448DDD448D99F2/segmentation/SAM-6D/SAM-6D/Data/Example/big_robots_6d/depth/palet.png"
+    args.cam_path = "/media/gouda/3C448DDD448D99F2/segmentation/SAM-6D/SAM-6D/Data/Example/big_robots_6d/camera.json"
+    args.cad_path = "/media/gouda/3C448DDD448D99F2/segmentation/SAM-6D/SAM-6D/Data/Example/big_robots_6d/models/obj_000002.ply"
     os.makedirs(f"{args.output_dir}/sam6d_results", exist_ok=True)
     run_inference(
         args.segmentor_model, args.output_dir, args.cad_path, args.rgb_path, args.depth_path, args.cam_path, 

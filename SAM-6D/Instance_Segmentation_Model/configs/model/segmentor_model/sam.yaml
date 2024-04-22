@@ -1,5 +1,5 @@
 _target_: model.sam.CustomSamAutomaticMaskGenerator
-points_per_batch: 64
+points_per_batch: 1
 stability_score_thresh: 0.85
 box_nms_thresh: 0.7
 min_mask_region_area: 0
@@ -9,4 +9,5 @@ segmentor_width_size: ${model.segmentor_width_size}
 sam:
   _target_: model.sam.load_sam
   model_type: vit_h
-  checkpoint_dir: ./checkpoints/segment-anything/
+  checkpoint_dir: /media/gouda/3C448DDD448D99F2/segmentation/SAM-6D/SAM-6D/Instance_Segmentation_Model/checkpoints/segment-anything/
+

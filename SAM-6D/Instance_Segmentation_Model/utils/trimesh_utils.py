@@ -84,6 +84,10 @@ def depth_image_to_pointcloud_translate_torch(depth, scale, K):
 
     # depth metric is mm, depth_scale metric is m
     # K metric is m
+    # convert all to float to avoid overflow
+    # depth = depth.float()
+    # scale = scale.float()
+    # K = K.float()
     Z = depth * scale / 1000
     X = (u - K[0, 2]) * Z / K[0, 0]
     Y = (v - K[1, 2]) * Z / K[1, 1]

@@ -41,6 +41,7 @@ class BOPTemplatePBR(BaseBOP):
         **kwargs,
     ):
         self.template_dir = template_dir
+        # self.template_dir = '/media/gouda/3C448DDD448D99F2/segmentation/SAM-6D/SAM-6D/Data/BOP-Templates/templates_pyrender/big_robots_6d'
         obj_ids = self.get_obj_ids(self.template_dir)
         if obj_ids is None:
             obj_ids = [
@@ -173,6 +174,9 @@ class BOPTemplatePBR(BaseBOP):
                 self.obj_ids, desc="Finding nearest rendering close to template poses"
             ):
                 selected_index_obj = index_dataframe[self.metaData["obj_id"] == obj_id]
+                # skip if selected_index_obj is empty
+                if len(selected_index_obj) == 0:
+                    continue
                 # subsample a bit if there are too many frames
                 selected_index_obj = np.random.choice(selected_index_obj, 5000)
                 obj_poses = np.array(

@@ -238,7 +238,17 @@ class Instance_Segmentation_Model(pl.LightningModule):
         proposal: N_query x imageH x imageW
         depth: imageH x imageW
         """
-        (N_query, imageH, imageW) = proposal.squeeze_().shape
+        # check if proposal has two 1s in the shape
+        if proposal.shape[0] == 1 and proposal.shape[1] == 1:
+            # remove one of the 1s
+            proposal = proposal.squeeze(axis=(0, 1))
+            # reshape to ensure first dimension is 1
+            proposal = proposal.reshape((1,) + proposal.shape)
+        else:
+            proposal = proposal.squeeze()
+
+        (N_query, imageH, imageW) = proposal.shape
+
         masked_depth = proposal * (depth[None, ...].repeat(N_query, 1, 1))
         translate = depth_image_to_pointcloud_translate_torch(
             masked_depth, depth_scale, cam_intrinsic
